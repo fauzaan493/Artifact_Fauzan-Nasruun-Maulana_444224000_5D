@@ -1,0 +1,1873 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HydroRange - Presisi Air Tanah & Irigasi (PWA)</title>
+
+    <!-- PWA Web App Meta Tags -->
+    <meta name="theme-color" content="#1b4d3e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="HydroRange">
+    <meta name="description" content="Aplikasi Simulasi Kadar Air Tanah, FC, PWP, dan Rekomendasi Irigasi Presisi berbasis DIKW.">
+
+    <!-- Web App Manifest Placeholder -->
+    <link rel="manifest" id="manifest-placeholder">
+
+    <!-- Font & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#1b4d3e',
+                        },
+                        aqua: {
+                            500: '#00a86b',
+                            600: '#0284c7',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        input, select, textarea { user-select: text; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .touch-active:active { transform: scale(0.97); opacity: 0.9; }
+        input[type=range] { accent-color: #16a34a; }
+
+        /* Segmented toggle (Manual / IoT) */
+        .seg-btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 6px 12px; border-radius: 9px; font-weight: 700; font-size: 12px;
+            color: #475569; transition: all .15s ease;
+        }
+        .seg-dark .seg-btn { color: #d1fae5; }
+        .seg-btn.active { background: #16a34a; color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+
+        /* Phase buttons */
+        .phase-btn {
+            text-align: left; padding: 8px 10px; border-radius: 12px; border: 1.5px solid #e2e8f0;
+            background: #fff; color: #334155; transition: all .15s ease;
+        }
+        .phase-btn.active { border-color: #16a34a; background: #f0fdf4; color: #166534; box-shadow: 0 0 0 2px rgba(22,163,74,.15); }
+
+        @keyframes pulseRed { 0%,100% { box-shadow: 0 0 0 0 rgba(225,29,72,.45); } 50% { box-shadow: 0 0 0 8px rgba(225,29,72,0); } }
+        .alert-critical { animation: pulseRed 1.5s infinite; }
+
+        @media print {
+            @page { margin: 12mm; }
+            header, nav, button, .no-print { display: none !important; }
+            body { background: white; color: black; padding: 0; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            main { margin-top: 0 !important; }
+            .tab-content { display: block !important; }
+            body.print-report .tab-content:not(#tab-pengujian) { display: none !important; }
+            canvas { max-width: 100% !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 pb-20 md:pb-0 md:pt-16 min-h-screen flex flex-col">
+
+    <!-- HEADER TOP BAR (Mobile & Desktop) -->
+    <header class="fixed top-0 left-0 right-0 bg-brand-900 text-white z-40 shadow-md border-b border-brand-800">
+        <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white shadow-inner font-bold text-lg">
+                    <i data-lucide="droplets" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base leading-none tracking-tight">HydroRange <span class="text-[10px] bg-emerald-700/80 text-emerald-200 px-1.5 py-0.5 rounded ml-1 font-mono">PWA v2.6</span></h1>
+                    <p class="text-[10px] text-emerald-200/80 font-medium">Monitoring Soil Water & DIKW Decision System</p>
+                </div>
+            </div>
+
+            <!-- Navigasi Desktop -->
+            <nav class="hidden md:flex items-center gap-1 text-xs font-semibold">
+                <button onclick="switchTab('beranda')" class="nav-btn-desktop px-3 py-1.5 rounded-lg transition hover:bg-white/10 flex items-center gap-1.5 text-slate-300" data-tab="beranda">
+                    <i data-lucide="home" class="w-4 h-4"></i> Beranda
+                </button>
+                <button onclick="switchTab('referensi')" class="nav-btn-desktop px-3 py-1.5 rounded-lg transition hover:bg-white/10 flex items-center gap-1.5 text-slate-300" data-tab="referensi">
+                    <i data-lucide="database" class="w-4 h-4"></i> Data Referensi
+                </button>
+                <button onclick="switchTab('input')" class="nav-btn-desktop px-3 py-1.5 rounded-lg transition hover:bg-white/10 flex items-center gap-1.5 text-slate-300" data-tab="input">
+                    <i data-lucide="sliders" class="w-4 h-4"></i> Input & Kc
+                </button>
+                <button onclick="switchTab('dashboard')" class="nav-btn-desktop px-3 py-1.5 rounded-lg transition hover:bg-white/10 flex items-center gap-1.5 text-slate-300" data-tab="dashboard">
+                    <i data-lucide="activity" class="w-4 h-4"></i> Dashboard DIKW
+                </button>
+                <button onclick="switchTab('pengujian')" class="nav-btn-desktop px-3 py-1.5 rounded-lg transition hover:bg-white/10 flex items-center gap-1.5 text-slate-300" data-tab="pengujian">
+                    <i data-lucide="check-circle-2" class="w-4 h-4"></i> Pengujian & Laporan
+                </button>
+            </nav>
+
+            <div class="flex items-center gap-2">
+                <button id="pwa-install-btn" onclick="triggerPwaInstall()" class="hidden text-xs bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-2.5 py-1.5 rounded-full shadow flex items-center gap-1 transition">
+                    <i data-lucide="download-cloud" class="w-3.5 h-3.5"></i> Install App
+                </button>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-800/80 text-emerald-300 border border-emerald-600/50">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span> Mobile PWA
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTAINER -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 mt-14 mb-4">
+
+        <!-- TAB 1: BERANDA -->
+        <section id="tab-beranda" class="tab-content space-y-5">
+            <!-- Hero Card -->
+            <div class="bg-gradient-to-br from-brand-900 via-brand-800 to-emerald-900 text-white rounded-2xl p-6 shadow-xl relative overflow-hidden border border-emerald-700/50">
+                <div class="absolute -right-10 -bottom-10 w-44 h-44 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+                <div class="relative z-10 max-w-2xl space-y-3">
+                    <span class="inline-block bg-emerald-500/20 text-emerald-300 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-500/30">
+                        Sistem Informasi Ketersediaan Air Tanah & Presisi Irigasi
+                    </span>
+                    <h2 class="text-2xl md:text-3xl font-extrabold tracking-tight">Presisi Air Tanah Berbasis Sistem DIKW</h2>
+                    <p class="text-xs md:text-sm text-emerald-100/90 leading-relaxed">
+                        HydroRange mengkuantifikasi status kelembaban tanah dari data fisik (<em>Kadar Air</em>, <em>FC</em>, <em>PWP</em>) menjadi keputusan bertindak presisi (<em>Wisdom</em>) untuk efisiensi irigasi dan penyelamatan tanaman dari kekeringan.
+                    </p>
+
+                    <!-- Toggle Mode Simulasi -->
+                    <div class="pt-1 space-y-1.5">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-300/90">Pilih Mode Simulasi</span>
+                        <div class="seg-dark flex sm:inline-flex bg-white/10 rounded-xl p-1 gap-1 border border-white/15">
+                            <button class="seg-btn active flex-1" data-mode-btn="manual" onclick="setMode('manual')">
+                                <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i> Mode Manual
+                            </button>
+                            <button class="seg-btn flex-1" data-mode-btn="iot" onclick="setMode('iot')">
+                                <i data-lucide="wifi" class="w-3.5 h-3.5"></i> Mode IoT Sensor
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="pt-1 flex flex-wrap gap-2.5">
+                        <button onclick="beginSimulation()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-4 py-2.5 rounded-xl shadow transition touch-active flex items-center gap-2 text-xs md:text-sm">
+                            <i data-lucide="play-circle" class="w-4 h-4"></i> Mulai Simulasi Lengas
+                        </button>
+                        <button onclick="switchTab('referensi')" class="bg-white/10 hover:bg-white/20 text-white font-medium px-4 py-2.5 rounded-xl transition text-xs md:text-sm flex items-center gap-2 border border-white/15">
+                            <i data-lucide="database" class="w-4 h-4"></i> Dataset Instansi
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Status Cards Grid -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="flex items-center justify-between text-emerald-700 mb-1.5">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">θ (Vol/Grav)</span>
+                        <i data-lucide="droplet" class="w-4 h-4 text-sky-500"></i>
+                    </div>
+                    <h3 class="text-sm font-bold text-slate-800">Kadar Air Aktual</h3>
+                    <p class="text-[11px] text-slate-500 mt-1 leading-snug">Persentase jumlah air tersimpan di pori tanah saat ini.</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="flex items-center justify-between text-emerald-700 mb-1.5">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">FC (% Vol)</span>
+                        <i data-lucide="waves" class="w-4 h-4 text-emerald-500"></i>
+                    </div>
+                    <h3 class="text-sm font-bold text-slate-800">Kapasitas Lapang</h3>
+                    <p class="text-[11px] text-slate-500 mt-1 leading-snug">Batas maksimum air ditahan tanah pasca perkolasi gravitasi.</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="flex items-center justify-between text-emerald-700 mb-1.5">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">PWP (% Vol)</span>
+                        <i data-lucide="flame" class="w-4 h-4 text-amber-500"></i>
+                    </div>
+                    <h3 class="text-sm font-bold text-slate-800">Titik Layu Permanen</h3>
+                    <p class="text-[11px] text-slate-500 mt-1 leading-snug">Batas minimum lengas tanah di mana akar tidak dapat menyerap air.</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="flex items-center justify-between text-emerald-700 mb-1.5">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">AWC / TAW</span>
+                        <i data-lucide="box" class="w-4 h-4 text-indigo-500"></i>
+                    </div>
+                    <h3 class="text-sm font-bold text-slate-800">Air Tersedia (AWC)</h3>
+                    <p class="text-[11px] text-slate-500 mt-1 leading-snug">Rentang air tanah yang dapat dimanfaatkan tanaman (FC minus PWP).</p>
+                </div>
+            </div>
+
+            <!-- FOUNDER CARD -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center gap-4">
+                <div class="w-20 h-20 rounded-full bg-gradient-to-tr from-brand-800 to-emerald-500 flex items-center justify-center text-white font-extrabold text-2xl shadow-md border-2 border-white shrink-0">
+                    FNM
+                </div>
+                <div class="space-y-1 text-center md:text-left flex-1">
+                    <div class="flex flex-wrap items-center justify-center md:justify-start gap-2">
+                        <span class="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">Inisiator & Founder Aplikasi</span>
+                        <span class="text-xs text-slate-400">• Angkatan 2024</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-900">Fauzan Nasruun Maulana</h3>
+                    <p class="text-xs font-semibold text-brand-700">Program Studi Agroekoteknologi - Fakultas Pertanian</p>
+                    <p class="text-xs text-slate-600 leading-relaxed pt-1">
+                        Pengembangan artefak aplikasi HydroRange ditujukan untuk memodernisasi pemantauan lengas tanah berbasis sistem DIKW (<em>Data, Information, Knowledge, Wisdom</em>) guna mendukung efisiensi irigasi dan ketahanan pangan nasional.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 2: DATA REFERENSI -->
+        <section id="tab-referensi" class="tab-content hidden space-y-5">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
+                <div>
+                    <h2 class="text-base font-bold text-slate-900">Dataset Empiris Instansi Pertanian</h2>
+                    <p class="text-xs text-slate-500">Gunakan acuan data karakteristik tanah dari laboratorium/lembaga terkait.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="document.getElementById('csv-file-input').click()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-lg border border-slate-300 transition flex items-center gap-1.5">
+                        <i data-lucide="upload" class="w-3.5 h-3.5"></i> Impor CSV/JSON
+                    </button>
+                    <input type="file" id="csv-file-input" class="hidden" accept=".csv, .json" onchange="handleImportFile(event)">
+                </div>
+            </div>
+
+            <!-- Preset Cards Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-emerald-500 transition flex flex-col justify-between space-y-3">
+                    <div>
+                        <span class="text-[10px] font-bold uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded">BBP2TP - Lahan Kering</span>
+                        <h3 class="font-bold text-slate-800 text-xs mt-2">Lombok Barat, NTB (Typic Haplustalf)</h3>
+                        <p class="text-xs text-slate-500 mt-1">Tekstur Lempung Pasiran (Sandy Loam). Porositas tinggi, cepat meluluskan air.</p>
+                    </div>
+                    <div class="bg-slate-50 p-2.5 rounded-lg text-xs space-y-1 font-mono text-slate-600">
+                        <div class="flex justify-between"><span>FC (Kapasitas Lapang):</span> <span class="font-bold text-slate-800">18.0%</span></div>
+                        <div class="flex justify-between"><span>PWP (Titik Layu):</span> <span class="font-bold text-slate-800">8.0%</span></div>
+                        <div class="flex justify-between"><span>Bulk Density (BD):</span> <span class="font-bold text-slate-800">1.40 g/cm³</span></div>
+                    </div>
+                    <button onclick="applyPreset('bbp2tp')" class="w-full text-xs bg-brand-50 text-brand-700 font-bold py-2 rounded-lg border border-brand-200 hover:bg-brand-600 hover:text-white transition">Gunakan Preset BBP2TP</button>
+                </div>
+
+                <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-emerald-500 transition flex flex-col justify-between space-y-3">
+                    <div>
+                        <span class="text-[10px] font-bold uppercase bg-emerald-100 text-brand-800 px-2 py-0.5 rounded">Balittanah - Vertisol</span>
+                        <h3 class="font-bold text-slate-800 text-xs mt-2">Tuban, Jawa Timur (Grumosol/Vertisol)</h3>
+                        <p class="text-xs text-slate-500 mt-1">Tekstur Liat Berat (Heavy Clay). Kapasitas simpan air tinggi, mengembang-mengkerut.</p>
+                    </div>
+                    <div class="bg-slate-50 p-2.5 rounded-lg text-xs space-y-1 font-mono text-slate-600">
+                        <div class="flex justify-between"><span>FC (Kapasitas Lapang):</span> <span class="font-bold text-slate-800">38.0%</span></div>
+                        <div class="flex justify-between"><span>PWP (Titik Layu):</span> <span class="font-bold text-slate-800">24.0%</span></div>
+                        <div class="flex justify-between"><span>Bulk Density (BD):</span> <span class="font-bold text-slate-800">1.20 g/cm³</span></div>
+                    </div>
+                    <button onclick="applyPreset('balittanah')" class="w-full text-xs bg-brand-50 text-brand-700 font-bold py-2 rounded-lg border border-brand-200 hover:bg-brand-600 hover:text-white transition">Gunakan Preset Balittanah</button>
+                </div>
+
+                <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-emerald-500 transition flex flex-col justify-between space-y-3">
+                    <div>
+                        <span class="text-[10px] font-bold uppercase bg-sky-100 text-sky-800 px-2 py-0.5 rounded">Dinperpan Banten - Agroklimat</span>
+                        <h3 class="font-bold text-slate-800 text-xs mt-2">Serang, Banten (Aluvial/Lempung)</h3>
+                        <p class="text-xs text-slate-500 mt-1">Tekstur Lempung (Loam). Kondisi seimbang untuk padi sawah & hortikultura.</p>
+                    </div>
+                    <div class="bg-slate-50 p-2.5 rounded-lg text-xs space-y-1 font-mono text-slate-600">
+                        <div class="flex justify-between"><span>FC (Kapasitas Lapang):</span> <span class="font-bold text-slate-800">28.0%</span></div>
+                        <div class="flex justify-between"><span>PWP (Titik Layu):</span> <span class="font-bold text-slate-800">14.0%</span></div>
+                        <div class="flex justify-between"><span>Bulk Density (BD):</span> <span class="font-bold text-slate-800">1.30 g/cm³</span></div>
+                    </div>
+                    <button onclick="applyPreset('banten')" class="w-full text-xs bg-brand-50 text-brand-700 font-bold py-2 rounded-lg border border-brand-200 hover:bg-brand-600 hover:text-white transition">Gunakan Preset Dinperpan Banten</button>
+                </div>
+            </div>
+
+            <!-- Tabel Acuan Kc FAO-56 -->
+            <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <h3 class="font-bold text-slate-800 text-xs mb-2 flex items-center gap-2">
+                    <i data-lucide="book-open" class="w-4 h-4 text-emerald-600"></i> Acuan Koefisien Tanaman (K<sub>c</sub>) Standar FAO-56
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-600">
+                        <thead class="bg-slate-100 text-slate-700 uppercase font-semibold text-[10px]">
+                            <tr>
+                                <th class="p-2.5 rounded-l-lg">Komoditas</th>
+                                <th class="p-2.5">Fase Awal (Kc ini)</th>
+                                <th class="p-2.5">Fase Dev (Kc dev)</th>
+                                <th class="p-2.5">Fase Generatif (Kc mid)</th>
+                                <th class="p-2.5 rounded-r-lg">Fase Akhir (Kc end)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 font-medium">
+                            <tr><td class="p-2.5 font-bold text-slate-800">Jagung Manis</td><td class="p-2.5">0.40</td><td class="p-2.5">0.80</td><td class="p-2.5">1.15</td><td class="p-2.5">0.70</td></tr>
+                            <tr><td class="p-2.5 font-bold text-slate-800">Padi Sawah (IR-64)</td><td class="p-2.5">1.05</td><td class="p-2.5">1.15</td><td class="p-2.5">1.20</td><td class="p-2.5">0.90</td></tr>
+                            <tr><td class="p-2.5 font-bold text-slate-800">Cabai Merah</td><td class="p-2.5">0.60</td><td class="p-2.5">0.85</td><td class="p-2.5">1.05</td><td class="p-2.5">0.80</td></tr>
+                            <tr><td class="p-2.5 font-bold text-slate-800">Kedelai</td><td class="p-2.5">0.40</td><td class="p-2.5">0.75</td><td class="p-2.5">1.15</td><td class="p-2.5">0.50</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 3: INPUT PARAMETER, FENOLOGI & GRAFIK KC -->
+        <section id="tab-input" class="tab-content hidden space-y-5">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+                <!-- Column Form Inputs -->
+                <div class="lg:col-span-5 bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <h2 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                            <i data-lucide="sliders" class="w-4 h-4 text-emerald-600"></i> Form Parameter Air Tanah & Tanaman
+                        </h2>
+                        <button onclick="resetFormInputs()" class="text-[11px] text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1">
+                            <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Reset
+                        </button>
+                    </div>
+
+                    <!-- MODE TOGGLE -->
+                    <div class="space-y-1.5">
+                        <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Mode Pembacaan Lengas</span>
+                        <div class="flex bg-slate-100 rounded-xl p-1 gap-1">
+                            <button class="seg-btn active flex-1" data-mode-btn="manual" onclick="setMode('manual')">
+                                <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i> Manual (Slider)
+                            </button>
+                            <button class="seg-btn flex-1" data-mode-btn="iot" onclick="setMode('iot', true)">
+                                <i data-lucide="wifi" class="w-3.5 h-3.5"></i> IoT Sensor
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 text-xs">
+                        <div>
+                            <label class="block font-semibold text-slate-700 mb-1">Kadar Air Tanah Aktual (θ) [% Volumetrik]</label>
+                            <input type="number" id="input-theta" step="0.1" value="20.0" oninput="calculateAll()" class="w-full p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold text-slate-800">
+
+                            <!-- Panel Manual -->
+                            <div id="panel-manual" class="mt-2 space-y-2">
+                                <input type="range" id="theta-slider" min="0" max="60" step="0.1" value="20" oninput="onThetaSlider(this.value)" class="w-full h-2">
+                                <div class="flex justify-between text-[10px] text-slate-400 font-mono"><span>0%</span><span>30%</span><span>60%</span></div>
+                                <button onclick="recordManualReading()" class="w-full text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 py-1.5 rounded-lg flex items-center justify-center gap-1.5">
+                                    <i data-lucide="bookmark-plus" class="w-3.5 h-3.5"></i> Catat Pembacaan ke Riwayat Tren
+                                </button>
+                            </div>
+
+                            <!-- Panel IoT -->
+                            <div id="panel-iot" class="hidden mt-2">
+                                <div class="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-2.5">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span id="iot-dot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                                            <span class="font-bold text-slate-800 text-xs" id="iot-status">Sensor Terputus</span>
+                                        </div>
+                                        <span class="font-mono text-[10px] text-slate-500">Node HR-SN-0427</span>
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-1.5 text-center">
+                                        <div class="bg-white rounded-lg border border-emerald-100 p-1.5">
+                                            <span class="block text-[9px] text-slate-400 font-bold uppercase">θ Sensor</span>
+                                            <b class="font-mono text-sm text-slate-800" id="iot-reading">--</b>
+                                        </div>
+                                        <div class="bg-white rounded-lg border border-emerald-100 p-1.5">
+                                            <span class="block text-[9px] text-slate-400 font-bold uppercase">Baterai</span>
+                                            <b class="font-mono text-sm text-slate-800" id="iot-battery">--</b>
+                                        </div>
+                                        <div class="bg-white rounded-lg border border-emerald-100 p-1.5">
+                                            <span class="block text-[9px] text-slate-400 font-bold uppercase">Sinyal</span>
+                                            <b class="font-mono text-sm text-slate-800" id="iot-rssi">--</b>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2 items-end">
+                                        <div>
+                                            <label class="block text-[10px] font-semibold text-slate-600 mb-0.5">Waktu per paket data</label>
+                                            <select id="iot-step" class="w-full p-1.5 rounded-lg border border-slate-300 text-[11px] font-semibold bg-white">
+                                                <option value="3">3 jam simulasi</option>
+                                                <option value="6" selected>6 jam simulasi</option>
+                                                <option value="12">12 jam simulasi</option>
+                                                <option value="24">1 hari simulasi</option>
+                                            </select>
+                                        </div>
+                                        <label class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 pb-1.5">
+                                            <input type="checkbox" id="iot-rain" class="accent-emerald-600"> Hujan acak
+                                        </label>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-1.5">
+                                        <button id="iot-toggle-btn" onclick="toggleIoT()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] py-2 rounded-lg flex items-center justify-center gap-1.5">
+                                            <i data-lucide="pause" class="w-3.5 h-3.5"></i> Jeda
+                                        </button>
+                                        <button onclick="iotEvent('reset')" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-[11px] py-2 rounded-lg flex items-center justify-center gap-1.5">
+                                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reset ke FC
+                                        </button>
+                                        <button onclick="iotEvent('rain')" class="bg-sky-50 border border-sky-200 hover:bg-sky-100 text-sky-800 font-bold text-[11px] py-2 rounded-lg flex items-center justify-center gap-1.5">
+                                            <i data-lucide="cloud-rain" class="w-3.5 h-3.5"></i> Hujan +10 mm
+                                        </button>
+                                        <button onclick="iotEvent('irrigate')" class="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] py-2 rounded-lg flex items-center justify-center gap-1.5">
+                                            <i data-lucide="droplets" class="w-3.5 h-3.5"></i> Terapkan Irigasi
+                                        </button>
+                                    </div>
+                                    <div id="iot-log" class="font-mono text-[10px] text-slate-500 max-h-20 overflow-y-auto hide-scrollbar bg-white rounded-lg border border-slate-200 p-1.5 space-y-0.5">Menunggu paket data...</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1">FC (Lapang) [%]</label>
+                                <input type="number" id="input-fc" step="0.1" value="28.0" oninput="calculateAll()" class="w-full p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-semibold">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1">PWP (Layu) [%]</label>
+                                <input type="number" id="input-pwp" step="0.1" value="14.0" oninput="calculateAll()" class="w-full p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-semibold">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1">BD [g/cm³]</label>
+                                <input type="number" id="input-bd" step="0.05" value="1.30" oninput="calculateAll()" class="w-full p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-semibold">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1">Akar Maks (Zr) [cm]</label>
+                                <input type="number" id="input-zr" step="5" value="40" oninput="calculateAll()" class="w-full p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-semibold">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1">MAD (p)</label>
+                                <input type="number" id="input-mad" step="0.05" value="0.50" oninput="calculateAll()" class="w-full p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-semibold">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1">ETo [mm/hr]</label>
+                                <input type="number" id="input-eto" step="0.1" value="4.5" oninput="calculateAll()" class="w-full p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-semibold">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-700 mb-1">Lahan [m²]</label>
+                                <input type="number" id="input-area" step="10" value="100" oninput="calculateAll()" class="w-full p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-semibold">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- FASE FENOLOGI -->
+                    <div class="border-t border-slate-100 pt-3 space-y-2.5">
+                        <h3 class="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                            <i data-lucide="sprout" class="w-4 h-4 text-emerald-600"></i> Fase Pertumbuhan (Fenologi) Saat Ini
+                        </h3>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <button class="phase-btn" data-phase="ini" onclick="setPhase('ini')">
+                                <span class="block text-xs font-bold">1. Inisial</span>
+                                <span class="block text-[10px] text-slate-500 font-mono" id="ph-sub-ini">--</span>
+                            </button>
+                            <button class="phase-btn" data-phase="veg" onclick="setPhase('veg')">
+                                <span class="block text-xs font-bold">2. Vegetatif</span>
+                                <span class="block text-[10px] text-slate-500 font-mono" id="ph-sub-veg">--</span>
+                            </button>
+                            <button class="phase-btn active" data-phase="gen" onclick="setPhase('gen')">
+                                <span class="block text-xs font-bold">3. Pembungaan / Generatif</span>
+                                <span class="block text-[10px] text-slate-500 font-mono" id="ph-sub-gen">--</span>
+                            </button>
+                            <button class="phase-btn" data-phase="mas" onclick="setPhase('mas')">
+                                <span class="block text-xs font-bold">4. Pemasakan</span>
+                                <span class="block text-[10px] text-slate-500 font-mono" id="ph-sub-mas">--</span>
+                            </button>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-[11px] font-semibold text-slate-600 mb-0.5">
+                                <span>Progres di dalam fase</span>
+                                <span id="phase-progress-label" class="font-mono text-emerald-700">50%</span>
+                            </div>
+                            <input type="range" id="phase-progress" min="0" max="100" step="5" value="50" oninput="calculateAll()" class="w-full h-2">
+                        </div>
+                        <label class="flex items-start gap-2 text-[11px] text-slate-600 font-medium leading-snug">
+                            <input type="checkbox" id="chk-root" checked onchange="calculateAll()" class="accent-emerald-600 mt-0.5">
+                            <span>Sesuaikan kedalaman akar efektif (Zr) otomatis per fase (Inisial 35%, Vegetatif 70%, Generatif & Pemasakan 100% dari Zr maks)</span>
+                        </label>
+                    </div>
+
+                    <div class="border-t border-slate-100 pt-3 space-y-2">
+                        <h3 class="font-bold text-slate-800 text-xs">Durasi Fase Tanaman (Hari) & Nilai Kc</h3>
+                        <div class="grid grid-cols-4 gap-1.5 text-[10px] text-center font-medium">
+                            <div class="bg-slate-50 p-1.5 rounded border border-slate-200">
+                                <div>Awal</div>
+                                <input type="number" id="dur-ini" value="20" oninput="calculateAll()" class="w-full text-center border mt-1 rounded p-1 font-bold">
+                                <input type="number" id="kc-ini" value="0.40" step="0.05" oninput="calculateAll()" class="w-full text-center border mt-1 rounded p-1 text-emerald-700 font-bold">
+                            </div>
+                            <div class="bg-slate-50 p-1.5 rounded border border-slate-200">
+                                <div>Dev</div>
+                                <input type="number" id="dur-dev" value="30" oninput="calculateAll()" class="w-full text-center border mt-1 rounded p-1 font-bold">
+                                <input type="number" id="kc-dev" value="0.80" step="0.05" oninput="calculateAll()" class="w-full text-center border mt-1 rounded p-1 text-emerald-700 font-bold">
+                            </div>
+                            <div class="bg-slate-50 p-1.5 rounded border border-slate-200">
+                                <div>Mid</div>
+                                <input type="number" id="dur-mid" value="40" oninput="calculateAll()" class="w-full text-center border mt-1 rounded p-1 font-bold">
+                                <input type="number" id="kc-mid" value="1.15" step="0.05" oninput="calculateAll()" class="w-full text-center border mt-1 rounded p-1 text-emerald-700 font-bold">
+                            </div>
+                            <div class="bg-slate-50 p-1.5 rounded border border-slate-200">
+                                <div>Late</div>
+                                <input type="number" id="dur-late" value="20" oninput="calculateAll()" class="w-full text-center border mt-1 rounded p-1 font-bold">
+                                <input type="number" id="kc-late" value="0.70" step="0.05" oninput="calculateAll()" class="w-full text-center border mt-1 rounded p-1 text-emerald-700 font-bold">
+                            </div>
+                        </div>
+                        <p class="text-[10px] text-slate-400 leading-snug">Kc aktual dibaca dari kurva pada fase & progres terpilih (fase Dev & Late diinterpolasi linier; Kc Dev menjadi nilai rujukan).</p>
+                    </div>
+
+                    <button onclick="switchTab('dashboard')" class="w-full bg-brand-800 hover:bg-brand-900 text-white font-bold py-2.5 rounded-xl shadow transition flex items-center justify-center gap-2 text-xs">
+                        <i data-lucide="bar-chart-2" class="w-4 h-4"></i> Tampilkan Dashboard DIKW
+                    </button>
+                </div>
+
+                <!-- Column Grafik Kurva Kc + Kebutuhan Air Aktual -->
+                <div class="lg:col-span-7 space-y-5">
+                    <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <h2 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                                    <i data-lucide="trending-up" class="w-4 h-4 text-emerald-600"></i> Kurva Koefisien Tanaman (K<sub>c</sub>) Siklus Tanam
+                                </h2>
+                                <span class="text-xs bg-slate-100 text-slate-600 font-mono px-2 py-0.5 rounded">Total: <span id="lbl-total-days">110</span> Hari</span>
+                            </div>
+                            <p class="text-xs text-slate-500 mb-3">Grafik koefisien konsumsi transpirasi spesifik tanaman (Kc) harian (ETc = ETo × Kc). Area hijau = fase terpilih, garis putus-putus = posisi saat ini.</p>
+                        </div>
+
+                        <div class="relative w-full h-60 md:h-72">
+                            <canvas id="chartKc"></canvas>
+                        </div>
+
+                        <div class="mt-3 p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-800 flex items-start gap-2">
+                            <i data-lucide="info" class="w-4 h-4 shrink-0 mt-0.5 text-emerald-600"></i>
+                            <span>Puncak konsumsi air terjadi pada <strong>Fase Mid-Season</strong> (Generatif/Pembungaan).</span>
+                        </div>
+                    </div>
+
+                    <!-- Kebutuhan Air Aktual per Fase -->
+                    <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                                <i data-lucide="gauge" class="w-4 h-4 text-emerald-600"></i> Kebutuhan Air Aktual
+                            </h3>
+                            <span class="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full" id="need-phase-tag">Generatif</span>
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-2.5 text-xs">
+                            <div class="bg-slate-50 rounded-xl border p-2.5"><span class="block text-[10px] text-slate-400 font-bold uppercase">Kc Aktual</span><b class="text-base font-mono text-emerald-700" id="need-kc">--</b></div>
+                            <div class="bg-slate-50 rounded-xl border p-2.5"><span class="block text-[10px] text-slate-400 font-bold uppercase">ETc Harian</span><b class="text-base font-mono text-sky-700" id="need-etc">--</b></div>
+                            <div class="bg-slate-50 rounded-xl border p-2.5"><span class="block text-[10px] text-slate-400 font-bold uppercase">Kebutuhan 7 Hari</span><b class="text-base font-mono text-slate-800" id="need-week">--</b></div>
+                            <div class="bg-slate-50 rounded-xl border p-2.5"><span class="block text-[10px] text-slate-400 font-bold uppercase">Zr Efektif</span><b class="text-base font-mono text-slate-800" id="need-zr">--</b></div>
+                            <div class="bg-slate-50 rounded-xl border p-2.5"><span class="block text-[10px] text-slate-400 font-bold uppercase">TAW Efektif</span><b class="text-base font-mono text-slate-800" id="need-taw">--</b></div>
+                            <div class="bg-slate-50 rounded-xl border p-2.5"><span class="block text-[10px] text-slate-400 font-bold uppercase">Interval Irigasi</span><b class="text-base font-mono text-indigo-700" id="need-int">--</b></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 4: DASHBOARD DIKW -->
+        <section id="tab-dashboard" class="tab-content hidden space-y-5">
+
+            <!-- DIKW Banner Header Status -->
+            <div id="dikw-alert-banner" class="p-4 rounded-2xl border shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div id="dikw-status-icon-bg" class="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 font-bold">
+                        <i data-lucide="alert-circle" id="dikw-status-icon" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-white/50 text-slate-800" id="dikw-level-tag">DIKW Level 2 & 4</span>
+                            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-black/20" id="dikw-live-badge">Manual</span>
+                            <h3 class="font-extrabold text-sm md:text-base" id="dikw-status-title">Status Lengas: Menghitung...</h3>
+                        </div>
+                        <p class="text-xs opacity-90 mt-0.5" id="dikw-status-desc">Memproses parameter kadar air tanah...</p>
+                    </div>
+                </div>
+                <div class="text-right shrink-0">
+                    <span class="text-[10px] font-semibold block opacity-80">Kadar Air Aktual</span>
+                    <span class="text-xl font-extrabold font-mono" id="lbl-theta-vol">0.0 %</span>
+                </div>
+            </div>
+
+            <!-- WISDOM: REKOMENDASI TINDAKAN CEPAT -->
+            <div id="wisdom-card" class="rounded-2xl border-2 shadow-sm overflow-hidden">
+                <div id="wisdom-head" class="px-4 py-2.5 flex items-center justify-between gap-2 text-white bg-emerald-600">
+                    <div class="flex items-center gap-2 font-extrabold text-xs md:text-sm">
+                        <span id="wisdom-icon-wrap"><i data-lucide="lightbulb" class="w-5 h-5"></i></span>
+                        Rekomendasi Tindakan Cepat (Wisdom)
+                    </div>
+                    <span id="wisdom-badge" class="text-[10px] font-extrabold tracking-wider bg-white/25 px-2.5 py-0.5 rounded-full">--</span>
+                </div>
+                <div class="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div class="md:col-span-8 space-y-3">
+                        <h3 id="wisdom-title" class="font-extrabold text-base md:text-lg leading-tight">--</h3>
+                        <p id="wisdom-command" class="text-sm font-semibold leading-relaxed">--</p>
+
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[11px] font-bold">
+                                <span>Air Tersedia Tanaman (AWC) tersisa</span>
+                                <span class="font-mono" id="wisdom-awc-label">--</span>
+                            </div>
+                            <div class="relative h-3 rounded-full bg-white/70 border border-slate-300 overflow-hidden">
+                                <div id="wisdom-bar-fill" class="h-full rounded-full transition-all duration-500" style="width:0%"></div>
+                                <div id="wisdom-mad-marker" class="absolute top-0 bottom-0 w-0.5 bg-slate-800/70" style="left:50%"></div>
+                            </div>
+                            <div class="flex justify-between text-[9px] text-slate-500 font-semibold">
+                                <span>PWP (0%)</span><span>Batas MAD</span><span>FC (100%)</span>
+                            </div>
+                        </div>
+
+                        <button onclick="copyWisdom()" class="text-[11px] font-bold bg-white/70 hover:bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 no-print">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i> Salin Perintah (untuk dikirim ke operator/WA)
+                        </button>
+                    </div>
+                    <div class="md:col-span-4 grid grid-cols-3 md:grid-cols-1 gap-2">
+                        <div class="bg-white/80 rounded-xl border border-slate-200 p-2.5">
+                            <span class="block text-[10px] text-slate-500 font-bold uppercase">Volume Irigasi</span>
+                            <b class="text-lg font-mono text-slate-900" id="wisdom-vol-mm">0 mm</b>
+                        </div>
+                        <div class="bg-white/80 rounded-xl border border-slate-200 p-2.5">
+                            <span class="block text-[10px] text-slate-500 font-bold uppercase">Per m²</span>
+                            <b class="text-lg font-mono text-slate-900" id="wisdom-vol-lm2">0 L/m²</b>
+                        </div>
+                        <div class="bg-white/80 rounded-xl border border-slate-200 p-2.5">
+                            <span class="block text-[10px] text-slate-500 font-bold uppercase" id="wisdom-total-label">Total Lahan</span>
+                            <b class="text-lg font-mono text-slate-900" id="wisdom-vol-total">0 L</b>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4 LEVEL DIKW GRID -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Level 1: DATA</span>
+                        <i data-lucide="binary" class="w-4 h-4 text-slate-400"></i>
+                    </div>
+                    <div class="space-y-1 text-xs font-mono">
+                        <div class="flex justify-between"><span class="text-slate-500">TAW (Total):</span><span class="font-bold text-slate-800" id="val-taw">0.0 mm</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">RAW (Mudah Diserap):</span><span class="font-bold text-emerald-700" id="val-raw">0.0 mm</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">SWD (Defisit Lengas):</span><span class="font-bold text-amber-700" id="val-swd">0.0 mm</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">ETc Harian:</span><span class="font-bold text-sky-700" id="val-etc">0.0 mm/hr</span></div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Level 2: INFORMATION</span>
+                        <i data-lucide="info" class="w-4 h-4 text-sky-500"></i>
+                    </div>
+                    <div class="space-y-1 text-xs">
+                        <span class="text-slate-500 block">Kategori Status Zona:</span>
+                        <div class="font-bold text-xs text-slate-800" id="val-info-zone">Zona Ideal (Optimal)</div>
+                        <p class="text-[11px] text-slate-500" id="val-info-detail">Kadar air di antara batas MAD dan FC.</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Level 3: KNOWLEDGE</span>
+                        <i data-lucide="brain-circuit" class="w-4 h-4 text-indigo-500"></i>
+                    </div>
+                    <div class="space-y-1 text-xs">
+                        <span class="text-slate-500 block">Estimasi Sisa Hari Aman:</span>
+                        <div class="text-xl font-extrabold text-indigo-700 font-mono" id="val-know-days">0 Hari</div>
+                        <p class="text-[11px] text-slate-500">Sebelum mencapai batas kritis stres (batas MAD / RAW habis), pada fase <b id="val-know-phase">--</b>.</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2 bg-gradient-to-br from-emerald-50/50 to-white">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <span class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Level 4: WISDOM</span>
+                        <i data-lucide="lightbulb" class="w-4 h-4 text-amber-500"></i>
+                    </div>
+                    <div class="space-y-1 text-xs">
+                        <div class="font-extrabold text-slate-900" id="val-wisdom-vol">Volume: 0 mm (0 L/m²)</div>
+                        <p class="text-[11px] text-slate-600 leading-tight" id="val-wisdom-action">Irigasi direkomendasikan secara presisi.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GRAFIK INDIKATOR DIKW -->
+            <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                            <i data-lucide="layers" class="w-4 h-4 text-emerald-600"></i> Grafik Indikator Integrasi DIKW (Zona Lengas Soil Water)
+                        </h3>
+                        <p class="text-xs text-slate-500">Visualisasi kontinu kadar air tanah aktual (θ) pada spektrum zona DIKW.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5 text-[9px] font-bold">
+                        <span class="px-2 py-0.5 rounded bg-sky-100 text-sky-800">Blue: Over-Sat / FC</span>
+                        <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">Green: Wisdom Optimal</span>
+                        <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800">Yellow: Depletion / Warning</span>
+                        <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-800">Red: PWP Critical</span>
+                    </div>
+                </div>
+
+                <div class="relative w-full h-64 md:h-72">
+                    <canvas id="chartDIKW"></canvas>
+                </div>
+            </div>
+
+            <div class="flex justify-end">
+                <button onclick="switchTab('pengujian')" class="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow">
+                    <i data-lucide="shield-check" class="w-4 h-4"></i> Buka Test Suite Pengujian
+                </button>
+            </div>
+        </section>
+
+        <!-- TAB 5: PENGUJIAN, TREN & LAPORAN -->
+        <section id="tab-pengujian" class="tab-content hidden space-y-5">
+            <!-- Test Suite Card -->
+            <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3 no-print">
+                <div>
+                    <h2 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                        <i data-lucide="check-square" class="w-4 h-4 text-emerald-600"></i> Automatic Test Suite (Uji Skenario Ekstrem)
+                    </h2>
+                    <p class="text-xs text-slate-500">Uji kehandalan keputusan mesin HydroRange pada berbagai kondisi tanah (FC 28%, PWP 14%, MAD 0.5).</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+                    <button onclick="runTestCase('tergenang')" class="p-3 bg-sky-50 border border-sky-200 hover:bg-sky-100 rounded-xl text-left transition space-y-1">
+                        <span class="text-xs font-bold text-sky-800 block">Skenario 1: Tergenang</span>
+                        <span class="text-[11px] text-sky-600 block">θ = 34% (θ &gt; FC 28%)</span>
+                        <span class="text-[9px] bg-sky-200 text-sky-900 px-1.5 py-0.5 rounded font-mono inline-block">Hasil: Drainase</span>
+                    </button>
+                    <button onclick="runTestCase('ideal')" class="p-3 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-xl text-left transition space-y-1">
+                        <span class="text-xs font-bold text-emerald-800 block">Skenario 2: Ideal Optimal</span>
+                        <span class="text-[11px] text-emerald-600 block">θ = 24% (MAD &lt; θ &lt; FC)</span>
+                        <span class="text-[9px] bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded font-mono inline-block">Hasil: Optimal</span>
+                    </button>
+                    <button onclick="runTestCase('stres')" class="p-3 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-xl text-left transition space-y-1">
+                        <span class="text-xs font-bold text-amber-800 block">Skenario 3: Stres Ringan</span>
+                        <span class="text-[11px] text-amber-600 block">θ = 18% (PWP &lt; θ &lt; MAD)</span>
+                        <span class="text-[9px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-mono inline-block">Hasil: Irigasi</span>
+                    </button>
+                    <button onclick="runTestCase('layu')" class="p-3 bg-rose-50 border border-rose-200 hover:bg-rose-100 rounded-xl text-left transition space-y-1">
+                        <span class="text-xs font-bold text-rose-800 block">Skenario 4: Layu Permanen</span>
+                        <span class="text-[11px] text-rose-600 block">θ = 11.5% (θ &lt;= PWP 14%)</span>
+                        <span class="text-[9px] bg-rose-200 text-rose-900 px-1.5 py-0.5 rounded font-mono inline-block">Hasil: Kritis</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- TREN TIME-SERIES -->
+            <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                            <i data-lucide="line-chart" class="w-4 h-4 text-emerald-600"></i> Grafik Tren Kadar Air Tanah Harian
+                        </h3>
+                        <p class="text-xs text-slate-500" id="trend-subtitle">Neraca air harian dari parameter aktif (ETc dengan faktor stres Ks).</p>
+                    </div>
+                    <div class="flex bg-slate-100 rounded-xl p-1 gap-1 no-print">
+                        <button class="seg-btn active" data-trend-btn="sim" onclick="setTrendSource('sim')">Simulasi Harian</button>
+                        <button class="seg-btn" data-trend-btn="live" onclick="setTrendSource('live')">Riwayat Sensor/Uji</button>
+                    </div>
+                </div>
+
+                <!-- Kontrol simulasi -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-2 items-end text-xs no-print" id="sim-controls">
+                    <div>
+                        <label class="block text-[10px] font-semibold text-slate-600 mb-0.5">Durasi simulasi</label>
+                        <select id="sim-days" class="w-full p-2 rounded-lg border border-slate-300 font-semibold bg-white">
+                            <option value="14">14 hari</option>
+                            <option value="30" selected>30 hari</option>
+                            <option value="60">60 hari</option>
+                        </select>
+                    </div>
+                    <label class="flex items-center gap-1.5 font-semibold text-slate-600 pb-2"><input type="checkbox" id="sim-rain" checked class="accent-emerald-600"> Sertakan hujan</label>
+                    <label class="flex items-center gap-1.5 font-semibold text-slate-600 pb-2"><input type="checkbox" id="sim-auto" checked class="accent-emerald-600"> Irigasi otomatis (DIKW)</label>
+                    <button onclick="runDailySimulation()" class="col-span-2 md:col-span-2 bg-brand-800 hover:bg-brand-900 text-white font-bold py-2.5 rounded-lg flex items-center justify-center gap-1.5">
+                        <i data-lucide="play" class="w-3.5 h-3.5"></i> Jalankan Simulasi
+                    </button>
+                </div>
+
+                <div class="relative w-full h-64 md:h-80">
+                    <canvas id="chartTrend"></canvas>
+                    <div id="trend-empty" class="hidden absolute inset-0 flex items-center justify-center text-center text-xs text-slate-400 font-semibold px-6">
+                        Belum ada riwayat. Jalankan Mode IoT, klik "Catat Pembacaan", atau jalankan skenario uji.
+                    </div>
+                </div>
+
+                <!-- Statistik simulasi -->
+                <div class="grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
+                    <div class="bg-slate-50 rounded-lg border p-2"><span class="block text-[9px] text-slate-400 font-bold uppercase">Durasi</span><b class="font-mono" id="st-days">--</b></div>
+                    <div class="bg-slate-50 rounded-lg border p-2"><span class="block text-[9px] text-slate-400 font-bold uppercase">Total ETc</span><b class="font-mono text-sky-700" id="st-etc">--</b></div>
+                    <div class="bg-slate-50 rounded-lg border p-2"><span class="block text-[9px] text-slate-400 font-bold uppercase">Total Hujan</span><b class="font-mono text-slate-700" id="st-rain">--</b></div>
+                    <div class="bg-slate-50 rounded-lg border p-2"><span class="block text-[9px] text-slate-400 font-bold uppercase">Total Irigasi</span><b class="font-mono text-emerald-700" id="st-irr">--</b></div>
+                    <div class="bg-slate-50 rounded-lg border p-2"><span class="block text-[9px] text-slate-400 font-bold uppercase">Hari Stres</span><b class="font-mono text-amber-700" id="st-stress">--</b></div>
+                    <div class="bg-slate-50 rounded-lg border p-2"><span class="block text-[9px] text-slate-400 font-bold uppercase">θ Minimum</span><b class="font-mono text-rose-700" id="st-min">--</b></div>
+                </div>
+
+                <!-- Ekspor -->
+                <div class="flex flex-col sm:flex-row gap-2 pt-1 no-print">
+                    <button onclick="exportCSV()" class="flex-1 bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-50 font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-2">
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Ekspor Data CSV
+                    </button>
+                    <button onclick="exportPDF()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-2">
+                        <i data-lucide="file-text" class="w-4 h-4"></i> Ekspor Laporan Ringkas (PDF)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Printable Report Card -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4" id="printable-report">
+                <div class="flex items-center justify-between border-b pb-3">
+                    <div>
+                        <h3 class="font-extrabold text-slate-900 text-base">Laporan Hasil Simulasi HydroRange</h3>
+                        <p class="text-xs text-slate-500">Tanggal Simulasi: <span id="report-date">--</span> • Mode: <span id="rep-mode">Manual</span></p>
+                    </div>
+                    <button onclick="exportPDF()" class="bg-emerald-600 text-white text-xs font-bold px-3.5 py-2 rounded-xl hover:bg-emerald-700 transition flex items-center gap-1.5 no-print">
+                        <i data-lucide="printer" class="w-4 h-4"></i> Cetak / Save PDF
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs font-mono">
+                    <div class="bg-slate-50 p-2.5 rounded-lg border">
+                        <span class="text-slate-400 block text-[10px]">KADAR AIR AKTUAL</span>
+                        <span class="text-xs font-bold text-slate-800" id="rep-theta">20.0 %</span>
+                    </div>
+                    <div class="bg-slate-50 p-2.5 rounded-lg border">
+                        <span class="text-slate-400 block text-[10px]">FC / PWP</span>
+                        <span class="text-xs font-bold text-slate-800" id="rep-fcpwp">28.0% / 14.0%</span>
+                    </div>
+                    <div class="bg-slate-50 p-2.5 rounded-lg border">
+                        <span class="text-slate-400 block text-[10px]">TOTAL AVAILABLE (TAW)</span>
+                        <span class="text-xs font-bold text-slate-800" id="rep-taw">72.8 mm</span>
+                    </div>
+                    <div class="bg-slate-50 p-2.5 rounded-lg border">
+                        <span class="text-slate-400 block text-[10px]">DEFISIT AIR (SWD)</span>
+                        <span class="text-xs font-bold text-emerald-700" id="rep-swd">41.6 mm</span>
+                    </div>
+                    <div class="bg-slate-50 p-2.5 rounded-lg border">
+                        <span class="text-slate-400 block text-[10px]">FASE TANAMAN</span>
+                        <span class="text-xs font-bold text-slate-800" id="rep-phase">--</span>
+                    </div>
+                    <div class="bg-slate-50 p-2.5 rounded-lg border">
+                        <span class="text-slate-400 block text-[10px]">Kc / ETc</span>
+                        <span class="text-xs font-bold text-slate-800" id="rep-kcetc">--</span>
+                    </div>
+                    <div class="bg-slate-50 p-2.5 rounded-lg border">
+                        <span class="text-slate-400 block text-[10px]">AWC TERSISA</span>
+                        <span class="text-xs font-bold text-slate-800" id="rep-awc">--</span>
+                    </div>
+                    <div class="bg-slate-50 p-2.5 rounded-lg border">
+                        <span class="text-slate-400 block text-[10px]">IRIGASI TOTAL LAHAN</span>
+                        <span class="text-xs font-bold text-slate-800" id="rep-total">--</span>
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 p-3.5 rounded-xl border space-y-1 text-xs">
+                    <h4 class="font-bold text-slate-800">Rekomendasi Irigasi Presisi (DIKW Level 4 Wisdom):</h4>
+                    <p class="text-slate-700 leading-relaxed" id="rep-wisdom-text">--</p>
+                </div>
+
+                <div class="bg-slate-50 p-3.5 rounded-xl border space-y-1 text-xs">
+                    <h4 class="font-bold text-slate-800">Ringkasan Tren / Neraca Air:</h4>
+                    <p class="text-slate-700 leading-relaxed" id="rep-sim-summary">--</p>
+                </div>
+
+                <div class="border-t pt-3 space-y-1 text-[11px] text-slate-500">
+                    <h4 class="font-bold text-slate-700">Rumus Matematis Acuan:</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-1 font-mono">
+                        <div>• TAW = 10 × (FC − PWP) × BD × (Zr / 100)</div>
+                        <div>• RAW = TAW × p</div>
+                        <div>• SWD = 10 × (FC − θ) × BD × (Zr / 100)</div>
+                        <div>• ETc = ETo × Kc × Ks</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- TOAST -->
+    <div id="toast" class="hidden fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-lg z-50 no-print"></div>
+
+    <!-- MOBILE BOTTOM NAV BAR -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 px-2 py-1 shadow-lg no-print">
+        <div class="grid grid-cols-5 text-center">
+            <button onclick="switchTab('beranda')" class="nav-btn-mobile py-1 text-slate-500 flex flex-col items-center gap-0.5 text-[9px] font-semibold" data-tab="beranda">
+                <i data-lucide="home" class="w-5 h-5"></i> Beranda
+            </button>
+            <button onclick="switchTab('referensi')" class="nav-btn-mobile py-1 text-slate-500 flex flex-col items-center gap-0.5 text-[9px] font-semibold" data-tab="referensi">
+                <i data-lucide="database" class="w-5 h-5"></i> Referensi
+            </button>
+            <button onclick="switchTab('input')" class="nav-btn-mobile py-1 text-slate-500 flex flex-col items-center gap-0.5 text-[9px] font-semibold" data-tab="input">
+                <i data-lucide="sliders" class="w-5 h-5"></i> Input & Kc
+            </button>
+            <button onclick="switchTab('dashboard')" class="nav-btn-mobile py-1 text-slate-500 flex flex-col items-center gap-0.5 text-[9px] font-semibold" data-tab="dashboard">
+                <i data-lucide="activity" class="w-5 h-5"></i> DIKW
+            </button>
+            <button onclick="switchTab('pengujian')" class="nav-btn-mobile py-1 text-slate-500 flex flex-col items-center gap-0.5 text-[9px] font-semibold" data-tab="pengujian">
+                <i data-lucide="check-circle-2" class="w-5 h-5"></i> Pengujian
+            </button>
+        </div>
+    </nav>
+
+    <!-- JAVASCRIPT LOGIC ENGINE -->
+    <script>
+        /* =========================================================
+           0. PWA (manifest, install, service worker) — tidak berubah
+           ========================================================= */
+        const manifestData = {
+            "name": "HydroRange PWA - Presisi Irigasi",
+            "short_name": "HydroRange",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#1b4d3e",
+            "theme_color": "#1b4d3e",
+            "icons": [{
+                "src": "https://placehold.co/192x192/1b4d3e/ffffff?text=HydroRange",
+                "sizes": "192x192",
+                "type": "image/png"
+            }]
+        };
+        const manifestBlob = new Blob([JSON.stringify(manifestData)], {type: 'application/json'});
+        document.getElementById('manifest-placeholder').setAttribute('href', URL.createObjectURL(manifestBlob));
+
+        let deferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const btn = document.getElementById('pwa-install-btn');
+            if (btn) btn.classList.remove('hidden');
+        });
+        function triggerPwaInstall() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+            }
+        }
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                const swCode = `
+                    self.addEventListener('install', e => self.skipWaiting());
+                    self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(() => caches.match(e.request))));
+                `;
+                const swBlob = new Blob([swCode], {type: 'text/javascript'});
+                navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(() => {});
+            });
+        }
+
+        /* =========================================================
+           1. UTIL & STATE
+           ========================================================= */
+        const $ = (id) => document.getElementById(id);
+        const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+        const f1 = (v) => Number(v).toFixed(1);
+        const fInt = (v) => Math.round(v).toLocaleString('id-ID');
+
+        const PHASES = {
+            ini: { label: 'Inisial',                rootF: 0.35 },
+            veg: { label: 'Vegetatif',              rootF: 0.70 },
+            gen: { label: 'Pembungaan / Generatif', rootF: 1.00 },
+            mas: { label: 'Pemasakan',              rootF: 1.00 }
+        };
+        const PHASE_ORDER = ['ini', 'veg', 'gen', 'mas'];
+
+        let currentPhase = 'gen';
+        let currentMode = 'manual';
+        let chartKcInstance = null, chartDIKWInstance = null, chartTrendInstance = null;
+        const kcState = { curve: null, idx: 0 };
+        const zoneState = { theta: 0, fc: 0, pwp: 0, mad: 0 };
+        let lastLevel = null;
+        let lastWisdomIcon = '';
+        let lastWisdomText = '';
+
+        const liveHistory = [];          // riwayat sensor / uji / catatan manual
+        let simRows = null, simMeta = null;
+        let trendSource = 'sim';
+
+        function tabVisible(id) { return !$('tab-' + id).classList.contains('hidden'); }
+
+        function showToast(msg) {
+            const t = $('toast');
+            t.innerText = msg;
+            t.classList.remove('hidden');
+            clearTimeout(showToast._t);
+            showToast._t = setTimeout(() => t.classList.add('hidden'), 2600);
+        }
+
+        function num(id, def) {
+            const v = parseFloat($(id).value);
+            return Number.isFinite(v) ? v : def;
+        }
+
+        function readParams() {
+            return {
+                theta: num('input-theta', 0),
+                fc: num('input-fc', 0),
+                pwp: num('input-pwp', 0),
+                bd: Math.max(0.1, num('input-bd', 1.3)),
+                zrMax: Math.max(1, num('input-zr', 40)),
+                mad: clamp(num('input-mad', 0.5), 0.1, 0.9),
+                eto: Math.max(0, num('input-eto', 0)),
+                area: Math.max(1, num('input-area', 100)),
+                dur: {
+                    ini: Math.max(1, Math.round(num('dur-ini', 20))),
+                    veg: Math.max(1, Math.round(num('dur-dev', 30))),
+                    gen: Math.max(1, Math.round(num('dur-mid', 40))),
+                    mas: Math.max(1, Math.round(num('dur-late', 20)))
+                },
+                kc: { ini: num('kc-ini', 0.4), dev: num('kc-dev', 0.8), mid: num('kc-mid', 1.15), late: num('kc-late', 0.7) },
+                autoRoot: $('chk-root').checked,
+                progress: clamp(num('phase-progress', 50), 0, 100) / 100
+            };
+        }
+
+        /* =========================================================
+           2. MESIN HITUNG: Kc, fenologi, DIKW
+           ========================================================= */
+        function buildKcCurve(p) {
+            const labels = [], kc = [], phase = [], bounds = {};
+            let d = 0;
+            const push = (ph, n, fn) => {
+                bounds[ph] = { start: d, end: d + n - 1 };
+                for (let i = 0; i < n; i++, d++) { labels.push('H-' + (d + 1)); kc.push(fn(i, n)); phase.push(ph); }
+            };
+            push('ini', p.dur.ini, () => p.kc.ini);
+            push('veg', p.dur.veg, (i, n) => p.kc.ini + (p.kc.mid - p.kc.ini) * (i / n));
+            push('gen', p.dur.gen, () => p.kc.mid);
+            push('mas', p.dur.mas, (i, n) => p.kc.mid - (p.kc.mid - p.kc.late) * (i / n));
+            return { labels, kc, phase, bounds };
+        }
+
+        function currentDayIdx(p, curve) {
+            const b = curve.bounds[currentPhase];
+            return Math.round(b.start + p.progress * (b.end - b.start));
+        }
+
+        function zrEffFor(p, ph) { return p.zrMax * (p.autoRoot ? PHASES[ph].rootF : 1); }
+
+        function levelOf(theta, fc, pwp, mad) {
+            const ml = fc - mad * (fc - pwp);
+            if (theta > fc) return 'over';
+            if (theta >= ml) return 'ok';
+            if (theta > pwp) return 'warn';
+            return 'crit';
+        }
+
+        function derive(p) {
+            const curve = buildKcCurve(p);
+            const idx = currentDayIdx(p, curve);
+            const kc = curve.kc[idx];
+            const zr = zrEffFor(p, currentPhase);
+            const df = p.bd * zr / 10;                       // mm air per 1% θ  (= 10·BD·Zr/100)
+            const taw = Math.max(0, (p.fc - p.pwp) * df);
+            const raw = taw * p.mad;
+            const swd = Math.max(0, (p.fc - p.theta) * df);
+            const madLimit = p.fc - p.mad * (p.fc - p.pwp);
+            const etc = p.eto * kc;
+            const awcPct = (p.fc - p.pwp) > 0 ? (p.theta - p.pwp) / (p.fc - p.pwp) * 100 : 0;
+            const daysToMad = etc > 0 ? Math.max(0, (p.theta - madLimit) * df / etc) : Infinity;
+            const interval = etc > 0 ? raw / etc : Infinity;
+            return { curve, idx, kc, zr, df, taw, raw, swd, madLimit, etc, awcPct, daysToMad, interval };
+        }
+
+        /* =========================================================
+           3. WISDOM — Rekomendasi Tindakan Cepat
+           ========================================================= */
+        const LV = {
+            over: { label: 'TERGENANG', icon: 'waves',         card: 'border-sky-400 bg-sky-50 text-sky-950',           head: 'bg-sky-600',     bar: '#0284c7' },
+            ok:   { label: 'AMAN',      icon: 'shield-check',  card: 'border-emerald-400 bg-emerald-50 text-emerald-950', head: 'bg-emerald-600', bar: '#16a34a' },
+            warn: { label: 'WASPADA',   icon: 'alert-triangle', card: 'border-amber-400 bg-amber-50 text-amber-950',       head: 'bg-amber-500',   bar: '#f59e0b' },
+            crit: { label: 'DARURAT',   icon: 'siren',         card: 'border-rose-500 bg-rose-50 text-rose-950 alert-critical', head: 'bg-rose-600', bar: '#e11d48' }
+        };
+
+        function buildWisdom(p, d, level) {
+            const vol = (level === 'warn' || level === 'crit') ? d.swd : 0;
+            const total = vol * p.area;
+            const stages = level === 'crit' ? Math.max(2, Math.ceil(vol / 20)) : Math.max(1, Math.ceil(vol / 20));
+            const perStage = vol / stages;
+            const volTxt = `${f1(vol)} mm (${f1(vol)} L/m² ≈ ${fInt(total)} L untuk lahan ${fInt(p.area)} m²)`;
+            const daysTxt = Number.isFinite(d.daysToMad) ? `±${d.daysToMad.toFixed(1)} hari` : 'tidak terbatas';
+            const phaseTxt = PHASES[currentPhase].label;
+            let title, command;
+
+            if (level === 'over') {
+                title = 'HENTIKAN IRIGASI — LAHAN JENUH AIR';
+                command = `HENTIKAN seluruh irigasi sekarang. Buka saluran drainase untuk membuang kelebihan air (θ ${f1(p.theta)}% melampaui FC ${f1(p.fc)}%). Tunda penyiraman sampai θ turun mendekati FC dan cek ulang sensor dalam 24 jam untuk mencegah busuk akar.`;
+            } else if (level === 'ok') {
+                title = 'STATUS AMAN — TUNDA IRIGASI';
+                command = `TUNDA irigasi. Air tersedia (AWC) masih ${Math.max(0, d.awcPct).toFixed(0)}% pada fase ${phaseTxt}. Batas MAD diperkirakan tercapai dalam ${daysTxt} (ETc ${f1(d.etc)} mm/hari). Siapkan irigasi sekitar ${f1(d.raw)} mm pada saat itu; lanjutkan pemantauan harian.`;
+            } else if (level === 'warn') {
+                title = 'PERLU IRIGASI HARI INI';
+                command = `IRIGASI SEKARANG: berikan ${volTxt} agar lengas kembali ke FC. ${stages > 1 ? `Bagi menjadi ${stages} tahap (±${f1(perStage)} mm/tahap).` : 'Cukup satu kali pemberian.'} Lakukan pada pagi atau sore hari untuk menekan kehilangan evaporasi, lalu verifikasi θ 6 jam setelahnya.`;
+            } else {
+                title = 'PERINGATAN DARURAT KEKERINGAN!';
+                command = `⚠ PERINGATAN DARURAT KEKERINGAN! Lengas ${f1(p.theta)}% berada di bawah titik layu permanen (PWP ${f1(p.pwp)}%). SEGERA berikan irigasi darurat ${volTxt}. Bagi menjadi ${stages} tahap dengan jeda ±30 menit agar air meresap, periksa tanaman yang sudah layu, dan ulangi pembacaan sensor 6 jam kemudian.`;
+            }
+            return { title, command, vol, total, volTxt };
+        }
+
+        function updateWisdom(p, d, level) {
+            const lv = LV[level];
+            const w = buildWisdom(p, d, level);
+
+            $('wisdom-card').className = `rounded-2xl border-2 shadow-sm overflow-hidden ${lv.card}`;
+            $('wisdom-head').className = `px-4 py-2.5 flex items-center justify-between gap-2 text-white ${lv.head}`;
+            $('wisdom-badge').innerText = lv.label;
+            if (lastWisdomIcon !== lv.icon) {
+                $('wisdom-icon-wrap').innerHTML = `<i data-lucide="${lv.icon}" class="w-5 h-5"></i>`;
+                lastWisdomIcon = lv.icon;
+                lucide.createIcons();
+            }
+            $('wisdom-title').innerText = w.title;
+            $('wisdom-command').innerText = w.command;
+
+            const pct = clamp(d.awcPct, 0, 100);
+            const fill = $('wisdom-bar-fill');
+            fill.style.width = pct + '%';
+            fill.style.background = lv.bar;
+            $('wisdom-mad-marker').style.left = ((1 - p.mad) * 100) + '%';
+            $('wisdom-awc-label').innerText = d.awcPct > 100 ? '>100% (di atas FC)' : `${Math.max(0, d.awcPct).toFixed(0)}%`;
+
+            $('wisdom-vol-mm').innerText = `${f1(w.vol)} mm`;
+            $('wisdom-vol-lm2').innerText = `${f1(w.vol)} L/m²`;
+            $('wisdom-total-label').innerText = `Total ${fInt(p.area)} m²`;
+            $('wisdom-vol-total').innerText = `${fInt(w.total)} L`;
+
+            lastWisdomText = `${w.title}\n${w.command}`;
+            return w;
+        }
+
+        function copyWisdom() {
+            const txt = `[HydroRange] ${lastWisdomText}`;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(txt).then(() => showToast('Perintah disalin ke clipboard'), () => showToast('Gagal menyalin'));
+            } else {
+                const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); showToast('Perintah disalin ke clipboard'); } catch (e) { showToast('Gagal menyalin'); }
+                ta.remove();
+            }
+        }
+
+        /* =========================================================
+           4. NAVIGASI & PRESET
+           ========================================================= */
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            const targetTab = $('tab-' + tabId);
+            if (targetTab) targetTab.classList.remove('hidden');
+
+            document.querySelectorAll('.nav-btn-desktop, .nav-btn-mobile').forEach(btn => {
+                if (btn.getAttribute('data-tab') === tabId) {
+                    btn.classList.add('text-emerald-500', 'font-bold');
+                    btn.classList.remove('text-slate-300', 'text-slate-500');
+                } else {
+                    btn.classList.remove('text-emerald-500', 'font-bold');
+                    btn.classList.add('text-slate-300', 'text-slate-500');
+                }
+            });
+
+            if (tabId === 'pengujian' && !simRows) runDailySimulation(true);
+            calculateAll();
+            if (tabId === 'input' || tabId === 'dashboard' || tabId === 'pengujian') {
+                setTimeout(() => {
+                    [chartKcInstance, chartDIKWInstance, chartTrendInstance].forEach(c => { if (c) c.resize(); });
+                }, 80);
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function applyPreset(presetKey) {
+            if (presetKey === 'bbp2tp') {
+                $('input-fc').value = 18.0; $('input-pwp').value = 8.0; $('input-bd').value = 1.40; $('input-theta').value = 12.0;
+            } else if (presetKey === 'balittanah') {
+                $('input-fc').value = 38.0; $('input-pwp').value = 24.0; $('input-bd').value = 1.20; $('input-theta').value = 28.0;
+            } else if (presetKey === 'banten') {
+                $('input-fc').value = 28.0; $('input-pwp').value = 14.0; $('input-bd').value = 1.30; $('input-theta').value = 20.0;
+            }
+            if (iot.running) iot.trueTheta = parseFloat($('input-theta').value);
+            simRows = null;
+            switchTab('input');
+        }
+
+        function resetFormInputs() {
+            $('input-theta').value = 20.0;
+            $('input-fc').value = 28.0;
+            $('input-pwp').value = 14.0;
+            $('input-bd').value = 1.30;
+            $('input-zr').value = 40;
+            $('input-mad').value = 0.50;
+            $('input-eto').value = 4.5;
+            $('input-area').value = 100;
+            $('phase-progress').value = 50;
+            $('chk-root').checked = true;
+            if (iot.running) iot.trueTheta = 20.0;
+            setPhase('gen');
+        }
+
+        function handleImportFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const text = e.target.result;
+                    if (file.name.endsWith('.json')) {
+                        const data = JSON.parse(text);
+                        if (data.fc) $('input-fc').value = data.fc;
+                        if (data.pwp) $('input-pwp').value = data.pwp;
+                        if (data.theta) $('input-theta').value = data.theta;
+                        if (data.bd) $('input-bd').value = data.bd;
+                    } else {
+                        const lines = text.split('\n');
+                        if (lines.length > 1) {
+                            const vals = lines[1].split(',');
+                            if (vals[0]) $('input-theta').value = parseFloat(vals[0]);
+                            if (vals[1]) $('input-fc').value = parseFloat(vals[1]);
+                            if (vals[2]) $('input-pwp').value = parseFloat(vals[2]);
+                        }
+                    }
+                    simRows = null;
+                    calculateAll();
+                    showToast('Data berhasil diimpor');
+                } catch (err) {
+                    alert('Gagal membaca file data. Pastikan format valid.');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        /* =========================================================
+           5. MODE MANUAL / IoT SENSOR
+           ========================================================= */
+        const iot = { running: false, timer: null, tick: 0, battery: 98.0, rssi: -61, trueTheta: 20, simTime: new Date(), log: [] };
+
+        function setMode(mode, autostart) {
+            currentMode = mode;
+            const isIoT = mode === 'iot';
+            document.querySelectorAll('[data-mode-btn]').forEach(b => b.classList.toggle('active', b.dataset.modeBtn === mode));
+            $('panel-manual').classList.toggle('hidden', isIoT);
+            $('panel-iot').classList.toggle('hidden', !isIoT);
+            $('input-theta').readOnly = isIoT;
+            $('theta-slider').disabled = isIoT;
+            $('input-theta').classList.toggle('bg-slate-100', isIoT);
+            if (isIoT) { if (autostart) startIoT(); else updateIoTUI(); }
+            else stopIoT();
+            updateModeBadges();
+            calculateAll();
+        }
+
+        function beginSimulation() {
+            switchTab('input');
+            if (currentMode === 'iot') startIoT();
+        }
+
+        function updateModeBadges() {
+            const live = currentMode === 'iot' && iot.running;
+            $('dikw-live-badge').innerText = currentMode === 'iot' ? (live ? '● LIVE IoT' : 'IoT • Jeda') : 'Manual';
+            $('rep-mode').innerText = currentMode === 'iot' ? 'IoT Sensor (simulasi)' : 'Manual';
+        }
+
+        function onThetaSlider(v) {
+            $('input-theta').value = parseFloat(v).toFixed(1);
+            calculateAll();
+        }
+
+        function recordManualReading() {
+            recordReading('manual');
+            showToast('Pembacaan dicatat (' + liveHistory.length + ' titik)');
+        }
+
+        function startIoT() {
+            if (iot.running) return;
+            const p = readParams();
+            iot.trueTheta = p.theta;
+            iot.simTime = new Date();
+            iot.running = true;
+            iot.timer = setInterval(iotTick, 2000);
+            iotTick();
+            updateIoTUI();
+            updateModeBadges();
+        }
+
+        function stopIoT() {
+            if (iot.timer) clearInterval(iot.timer);
+            iot.timer = null;
+            iot.running = false;
+            updateIoTUI();
+            updateModeBadges();
+        }
+
+        function toggleIoT() { iot.running ? stopIoT() : startIoT(); }
+
+        function iotTick() {
+            const p = readParams();
+            const d = derive(p);
+            const stepH = parseInt($('iot-step').value) || 6;
+            iot.tick++;
+            iot.simTime = new Date(iot.simTime.getTime() + stepH * 3600000);
+
+            // Deplesi akibat ETc (dikurangi Ks saat di bawah batas MAD)
+            const ks = iot.trueTheta >= d.madLimit ? 1 : clamp((iot.trueTheta - p.pwp) / Math.max(0.001, d.madLimit - p.pwp), 0, 1);
+            let dMm = d.etc * ks * stepH / 24;
+            let rainMm = 0;
+            if ($('iot-rain').checked && Math.random() < 0.06) rainMm = 5 + Math.random() * 15;
+            iot.trueTheta += (rainMm - dMm) / d.df;
+            // Drainase kelebihan di atas FC
+            if (iot.trueTheta > p.fc) iot.trueTheta -= (iot.trueTheta - p.fc) * 0.4;
+            iot.trueTheta = Math.max(Math.max(1, p.pwp - 3), iot.trueTheta);
+
+            const noise = (Math.random() - 0.5) * 0.24;
+            const reading = Math.max(0, iot.trueTheta + noise);
+            iot.battery = Math.max(5, iot.battery - 0.03);
+            iot.rssi = Math.round(clamp(iot.rssi + (Math.random() - 0.5) * 4, -90, -48));
+
+            $('input-theta').value = reading.toFixed(1);
+            const t = iot.simTime.toLocaleString('id-ID', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+            pushIoTLog(`#${String(iot.tick).padStart(3, '0')} ${t} θ=${reading.toFixed(1)}%${rainMm ? ' 🌧 +' + rainMm.toFixed(0) + 'mm' : ''}`);
+            calculateAll();
+            recordReading('iot', t);
+            updateIoTUI();
+        }
+
+        function iotEvent(type) {
+            const p = readParams();
+            const d = derive(p);
+            if (!iot.running) iot.trueTheta = p.theta;
+            if (type === 'rain') {
+                iot.trueTheta += 10 / d.df;
+                pushIoTLog('🌧 Event hujan +10 mm');
+            } else if (type === 'irrigate') {
+                const swd = Math.max(0, (p.fc - iot.trueTheta) * d.df);
+                iot.trueTheta = p.fc;
+                pushIoTLog(`💧 Irigasi ${f1(swd)} mm diterapkan`);
+                showToast(`Irigasi ${f1(swd)} mm diterapkan`);
+            } else if (type === 'reset') {
+                iot.trueTheta = p.fc;
+                pushIoTLog('↺ Sensor di-reset ke FC');
+            }
+            $('input-theta').value = iot.trueTheta.toFixed(1);
+            calculateAll();
+            recordReading('iot-event');
+        }
+
+        function pushIoTLog(line) {
+            iot.log.unshift(line);
+            iot.log = iot.log.slice(0, 8);
+            $('iot-log').innerHTML = iot.log.map(l => `<div>${l}</div>`).join('');
+        }
+
+        function updateIoTUI() {
+            const run = iot.running;
+            $('iot-dot').className = `w-2.5 h-2.5 rounded-full ${run ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`;
+            $('iot-status').innerText = run ? 'Sensor Terhubung • Streaming' : 'Sensor Dijeda';
+            $('iot-reading').innerText = `${num('input-theta', 0).toFixed(1)}%`;
+            $('iot-battery').innerText = `${iot.battery.toFixed(0)}%`;
+            $('iot-rssi').innerText = `${iot.rssi} dBm`;
+            $('iot-toggle-btn').innerHTML = run
+                ? '<i data-lucide="pause" class="w-3.5 h-3.5"></i> Jeda'
+                : '<i data-lucide="play" class="w-3.5 h-3.5"></i> Lanjutkan';
+            lucide.createIcons();
+        }
+
+        /* =========================================================
+           6. RIWAYAT & SIMULASI HARIAN (TIME-SERIES)
+           ========================================================= */
+        function recordReading(src, labelOverride) {
+            const p = readParams();
+            const d = derive(p);
+            const label = labelOverride || new Date().toLocaleString('id-ID', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            liveHistory.push({ t: label, src, theta: p.theta, fc: p.fc, mad: d.madLimit, pwp: p.pwp, swd: d.swd, level: levelOf(p.theta, p.fc, p.pwp, p.mad) });
+            if (liveHistory.length > 300) liveHistory.shift();
+            if (trendSource === 'live' && tabVisible('pengujian')) renderTrendChart();
+        }
+
+        function mulberry32(a) {
+            return function () {
+                a |= 0; a = a + 0x6D2B79F5 | 0;
+                let t = Math.imul(a ^ a >>> 15, 1 | a);
+                t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+                return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            };
+        }
+
+        function runDailySimulation(silent) {
+            const p = readParams();
+            const curve = buildKcCurve(p);
+            const startIdx = currentDayIdx(p, curve);
+            const days = parseInt($('sim-days').value) || 30;
+            const useRain = $('sim-rain').checked;
+            const autoIrr = $('sim-auto').checked;
+            const rng = mulberry32(20261111);
+            const madLimit = p.fc - p.mad * (p.fc - p.pwp);
+            const startDate = new Date();
+            let th = p.theta;
+            const rows = [];
+            const st = { etc: 0, rain: 0, irr: 0, events: 0, stress: 0, min: th };
+
+            for (let i = 0; i < days; i++) {
+                const idx = Math.min(startIdx + i, curve.kc.length - 1);
+                const ph = curve.phase[idx];
+                const kc = curve.kc[idx];
+                const df = p.bd * zrEffFor(p, ph) / 10;
+                const rain = useRain && rng() < 0.18 ? Math.round(5 + rng() * 25) : 0;
+                let irr = 0;
+                if (autoIrr && th < madLimit) { irr = Math.max(0, (p.fc - th) * df); th = p.fc; st.events++; }
+                const etc = p.eto * kc;
+                const ks = th >= madLimit ? 1 : clamp((th - p.pwp) / Math.max(0.001, madLimit - p.pwp), 0, 1);
+                const etAct = etc * ks;
+                th += (rain - etAct) / df;
+                let drain = 0;
+                if (th > p.fc) { drain = (th - p.fc) * df; th = p.fc; }
+                th = Math.max(Math.max(1, p.pwp - 2), th);
+
+                const date = new Date(startDate.getTime() + i * 86400000);
+                rows.push({
+                    day: i + 1,
+                    date: date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }),
+                    phase: PHASES[ph].label, kc, etc: etAct, ks, rain, irr, drain, theta: th,
+                    level: levelOf(th, p.fc, p.pwp, p.mad)
+                });
+                st.etc += etAct; st.rain += rain; st.irr += irr;
+                if (th < madLimit) st.stress++;
+                st.min = Math.min(st.min, th);
+            }
+            simRows = rows;
+            simMeta = { days, useRain, autoIrr, fc: p.fc, pwp: p.pwp, mad: madLimit, stats: st, phase: PHASES[currentPhase].label, area: p.area };
+            updateSimStats();
+            if (trendSource === 'sim') renderTrendChart();
+            if (!silent) showToast(`Simulasi ${days} hari selesai`);
+        }
+
+        function updateSimStats() {
+            if (!simMeta) return;
+            const s = simMeta.stats;
+            $('st-days').innerText = `${simMeta.days} hr`;
+            $('st-etc').innerText = `${f1(s.etc)} mm`;
+            $('st-rain').innerText = `${f1(s.rain)} mm`;
+            $('st-irr').innerText = `${f1(s.irr)} mm`;
+            $('st-stress').innerText = `${s.stress} hr`;
+            $('st-min').innerText = `${f1(s.min)} %`;
+            $('rep-sim-summary').innerText =
+                `Simulasi ${simMeta.days} hari mulai fase ${simMeta.phase}: total ETc ${f1(s.etc)} mm, hujan ${f1(s.rain)} mm, ` +
+                `irigasi ${f1(s.irr)} mm dalam ${s.events} kali pemberian (≈ ${fInt(s.irr * simMeta.area)} L untuk ${fInt(simMeta.area)} m²), ` +
+                `${s.stress} hari berada di bawah batas MAD, θ minimum ${f1(s.min)}%` +
+                (simMeta.autoIrr ? '.' : ' (irigasi otomatis dimatikan).');
+        }
+
+        function setTrendSource(src) {
+            trendSource = src;
+            document.querySelectorAll('[data-trend-btn]').forEach(b => b.classList.toggle('active', b.dataset.trendBtn === src));
+            $('sim-controls').classList.toggle('hidden', src !== 'sim');
+            $('trend-subtitle').innerText = src === 'sim'
+                ? 'Neraca air harian dari parameter aktif (ETc dengan faktor stres Ks).'
+                : 'Riwayat pembacaan sensor IoT, catatan manual, dan skenario uji.';
+            if (src === 'sim' && !simRows) runDailySimulation(true);
+            renderTrendChart();
+        }
+
+        function trendDataset() {
+            if (trendSource === 'sim' && simRows) {
+                return {
+                    labels: simRows.map(r => r.date),
+                    theta: simRows.map(r => +r.theta.toFixed(2)),
+                    fc: simRows.map(() => simMeta.fc),
+                    mad: simRows.map(() => +simMeta.mad.toFixed(2)),
+                    pwp: simRows.map(() => simMeta.pwp),
+                    irr: simRows.map(r => +r.irr.toFixed(1)),
+                    rain: simRows.map(r => r.rain),
+                    thetaLabel: 'θ harian (%)'
+                };
+            }
+            return {
+                labels: liveHistory.map(r => r.t),
+                theta: liveHistory.map(r => +r.theta.toFixed(2)),
+                fc: liveHistory.map(r => r.fc),
+                mad: liveHistory.map(r => +r.mad.toFixed(2)),
+                pwp: liveHistory.map(r => r.pwp),
+                irr: [], rain: [],
+                thetaLabel: 'θ pembacaan (%)'
+            };
+        }
+
+        function renderTrendChart() {
+            if (!tabVisible('pengujian')) return;
+            const dsd = trendDataset();
+            const has = dsd.theta.length > 0;
+            $('trend-empty').classList.toggle('hidden', has);
+            const ctx = $('chartTrend').getContext('2d');
+
+            if (!chartTrendInstance) {
+                chartTrendInstance = new Chart(ctx, {
+                    data: {
+                        labels: dsd.labels,
+                        datasets: [
+                            { type: 'line', label: dsd.thetaLabel, data: dsd.theta, borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,0.12)', borderWidth: 3, fill: true, tension: 0.25, pointRadius: 2, yAxisID: 'y', order: 1 },
+                            { type: 'line', label: 'FC', data: dsd.fc, borderColor: '#0284c7', borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0, yAxisID: 'y', order: 2 },
+                            { type: 'line', label: 'Batas MAD', data: dsd.mad, borderColor: '#d97706', borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0, yAxisID: 'y', order: 2 },
+                            { type: 'line', label: 'PWP', data: dsd.pwp, borderColor: '#e11d48', borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0, yAxisID: 'y', order: 2 },
+                            { type: 'bar', label: 'Irigasi (mm)', data: dsd.irr, backgroundColor: 'rgba(16,185,129,0.55)', yAxisID: 'y1', order: 3 },
+                            { type: 'bar', label: 'Hujan (mm)', data: dsd.rain, backgroundColor: 'rgba(14,165,233,0.45)', yAxisID: 'y1', order: 3 }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } },
+                        scales: {
+                            y: { title: { display: true, text: 'Kadar Air θ (% Vol)' }, suggestedMin: 0 },
+                            y1: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'mm' }, beginAtZero: true, suggestedMax: 30 },
+                            x: { ticks: { maxTicksLimit: 10, font: { size: 10 } } }
+                        }
+                    }
+                });
+            } else {
+                const c = chartTrendInstance;
+                c.data.labels = dsd.labels;
+                c.data.datasets[0].label = dsd.thetaLabel;
+                c.data.datasets[0].data = dsd.theta;
+                c.data.datasets[1].data = dsd.fc;
+                c.data.datasets[2].data = dsd.mad;
+                c.data.datasets[3].data = dsd.pwp;
+                c.data.datasets[4].data = dsd.irr;
+                c.data.datasets[5].data = dsd.rain;
+                c.update('none');
+            }
+        }
+
+        /* =========================================================
+           7. EKSPOR CSV & PDF
+           ========================================================= */
+        function downloadBlob(name, content, type) {
+            const blob = new Blob([content], { type });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 600);
+        }
+
+        function exportCSV() {
+            const p = readParams();
+            const d = derive(p);
+            const level = levelOf(p.theta, p.fc, p.pwp, p.mad);
+            const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
+            const stamp = new Date().toISOString().slice(0, 10);
+            const lines = [];
+
+            lines.push([q('HydroRange v2.6 - Laporan Simulasi'), q(new Date().toLocaleString('id-ID'))].join(','));
+            lines.push([q('Mode'), q(currentMode === 'iot' ? 'IoT Sensor (simulasi)' : 'Manual')].join(','));
+            lines.push([q('Fase'), q(PHASES[currentPhase].label), q('Kc'), q(d.kc.toFixed(2)), q('ETc mm/hari'), q(d.etc.toFixed(2))].join(','));
+            lines.push([q('FC %'), q(p.fc), q('PWP %'), q(p.pwp), q('BD'), q(p.bd), q('Zr efektif cm'), q(d.zr.toFixed(1)), q('MAD'), q(p.mad)].join(','));
+            lines.push([q('TAW mm'), q(d.taw.toFixed(1)), q('RAW mm'), q(d.raw.toFixed(1)), q('SWD mm'), q(d.swd.toFixed(1)), q('Status'), q(LV[level].label)].join(','));
+            lines.push([q('Rekomendasi'), q(lastWisdomText.replace(/\n/g, ' - '))].join(','));
+            lines.push('');
+
+            if (trendSource === 'sim') {
+                if (!simRows) runDailySimulation(true);
+                lines.push(['Hari', 'Tanggal', 'Fase', 'Kc', 'ETc_mm', 'Ks', 'Hujan_mm', 'Irigasi_mm', 'Drainase_mm', 'Theta_pct', 'FC_pct', 'MAD_pct', 'PWP_pct', 'Status'].join(','));
+                simRows.forEach(r => lines.push([
+                    r.day, q(r.date), q(r.phase), r.kc.toFixed(2), r.etc.toFixed(2), r.ks.toFixed(2), r.rain, r.irr.toFixed(1), r.drain.toFixed(1),
+                    r.theta.toFixed(2), simMeta.fc, simMeta.mad.toFixed(2), simMeta.pwp, q(LV[r.level].label)
+                ].join(',')));
+            } else {
+                if (!liveHistory.length) { showToast('Riwayat kosong, tidak ada data untuk diekspor'); return; }
+                lines.push(['No', 'Waktu', 'Sumber', 'Theta_pct', 'FC_pct', 'MAD_pct', 'PWP_pct', 'SWD_mm', 'Status'].join(','));
+                liveHistory.forEach((r, i) => lines.push([
+                    i + 1, q(r.t), q(r.src), r.theta.toFixed(2), r.fc, r.mad.toFixed(2), r.pwp, r.swd.toFixed(1), q(LV[r.level].label)
+                ].join(',')));
+            }
+            downloadBlob(`HydroRange_Laporan_${stamp}.csv`, '\ufeff' + lines.join('\r\n'), 'text/csv;charset=utf-8');
+            showToast('CSV berhasil diekspor');
+        }
+
+        function exportPDF() {
+            if (!tabVisible('pengujian')) switchTab('pengujian');
+            if (!simRows) runDailySimulation(true);
+            calculateAll();
+            renderTrendChart();
+            if (chartTrendInstance) chartTrendInstance.resize();
+            document.body.classList.add('print-report');
+            showToast('Pilih "Simpan sebagai PDF" pada dialog cetak');
+            setTimeout(() => window.print(), 400);
+        }
+        window.addEventListener('afterprint', () => document.body.classList.remove('print-report'));
+
+        /* =========================================================
+           8. FENOLOGI
+           ========================================================= */
+        function setPhase(ph) {
+            currentPhase = ph;
+            document.querySelectorAll('.phase-btn').forEach(b => b.classList.toggle('active', b.dataset.phase === ph));
+            simRows = null;
+            calculateAll();
+            if (tabVisible('pengujian')) runDailySimulation(true);
+        }
+
+        /* =========================================================
+           9. KALKULASI UTAMA + RENDER
+           ========================================================= */
+        function calculateAll() {
+            const p = readParams();
+            const d = derive(p);
+            const level = levelOf(p.theta, p.fc, p.pwp, p.mad);
+            const phaseName = PHASES[currentPhase].label;
+            const totalDays = p.dur.ini + p.dur.veg + p.dur.gen + p.dur.mas;
+
+            // sinkronisasi slider tanpa memicu event
+            $('theta-slider').value = p.theta;
+            $('lbl-total-days').innerText = totalDays;
+
+            // label fase
+            $('ph-sub-ini').innerText = `Kc ${p.kc.ini.toFixed(2)} • ${p.dur.ini} hr`;
+            $('ph-sub-veg').innerText = `Kc ${p.kc.dev.toFixed(2)} • ${p.dur.veg} hr`;
+            $('ph-sub-gen').innerText = `Kc ${p.kc.mid.toFixed(2)} • ${p.dur.gen} hr`;
+            $('ph-sub-mas').innerText = `Kc ${p.kc.late.toFixed(2)} • ${p.dur.mas} hr`;
+            const b = d.curve.bounds[currentPhase];
+            $('phase-progress-label').innerText = `${Math.round(p.progress * 100)}% • hari ke-${d.idx + 1} dari ${totalDays} (fase: ${d.idx - b.start + 1}/${b.end - b.start + 1})`;
+
+            // kebutuhan air aktual
+            $('need-phase-tag').innerText = phaseName;
+            $('need-kc').innerText = d.kc.toFixed(2);
+            $('need-etc').innerText = `${f1(d.etc)} mm/hr`;
+            $('need-week').innerText = `${f1(d.etc * 7)} mm`;
+            $('need-zr').innerText = `${d.zr.toFixed(0)} cm`;
+            $('need-taw').innerText = `${f1(d.taw)} mm`;
+            $('need-int').innerText = Number.isFinite(d.interval) ? `${d.interval.toFixed(1)} hari` : '∞';
+
+            // Level 1 DATA
+            $('lbl-theta-vol').innerText = `${p.theta.toFixed(1)} %`;
+            $('val-taw').innerText = `${f1(d.taw)} mm`;
+            $('val-raw').innerText = `${f1(d.raw)} mm`;
+            $('val-swd').innerText = `${f1(d.swd)} mm`;
+            $('val-etc').innerText = `${f1(d.etc)} mm/hr`;
+
+            // Laporan
+            $('rep-theta').innerText = `${p.theta.toFixed(1)} %`;
+            $('rep-fcpwp').innerText = `${p.fc.toFixed(1)}% / ${p.pwp.toFixed(1)}%`;
+            $('rep-taw').innerText = `${f1(d.taw)} mm`;
+            $('rep-swd').innerText = `${f1(d.swd)} mm`;
+            $('rep-phase').innerText = phaseName;
+            $('rep-kcetc').innerText = `${d.kc.toFixed(2)} / ${f1(d.etc)} mm/hr`;
+            $('rep-awc').innerText = `${Math.max(0, d.awcPct).toFixed(0)} %`;
+            $('report-date').innerText = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
+
+            // Level 2 & banner
+            let statusTitle, statusDesc, statusClass, infoZone, infoDetail, wisdomVol, wisdomAction;
+            if (level === 'over') {
+                statusTitle = 'Status Lengas: Tergenang / Anoksia';
+                statusDesc = 'Kadar air melebihi Kapasitas Lapang (FC). Risiko busuk akar.';
+                statusClass = 'bg-sky-600 text-white border-sky-700';
+                infoZone = 'Zona Tergenang / Jenuh (θ > FC)';
+                infoDetail = 'Pori makro tanah jenuh air, menghambat sirkulasi O2 akar.';
+                wisdomVol = 'Irigasi: 0 mm (Hentikan Penyiraman)';
+                wisdomAction = 'Buka saluran drainase lahan untuk membuang kelebihan air permukaan secepatnya.';
+            } else if (level === 'ok') {
+                statusTitle = 'Status Lengas: Kondisi Ideal (Optimal)';
+                statusDesc = 'Kadar air tanah berada pada rentang penyerapan air optimal.';
+                statusClass = 'bg-emerald-600 text-white border-emerald-700';
+                infoZone = 'Zona Kelembaban Ideal (MAD Limit <= θ <= FC)';
+                infoDetail = 'Air melimpah dan mudah diserap tanpa hambatan tekanan matriks.';
+                wisdomVol = 'Irigasi: 0 mm (Belum Diperlukan)';
+                wisdomAction = 'Pertahankan kondisi kelembaban tanah saat ini.';
+            } else if (level === 'warn') {
+                statusTitle = 'Status Lengas: Stres Ringan (Diperlukan Irigasi)';
+                statusDesc = 'Kadar air melewati batas MAD. Laju transpirasi mulai terhambat.';
+                statusClass = 'bg-amber-500 text-white border-amber-600';
+                infoZone = 'Zona Depresi Lengas (PWP < θ < MAD Limit)';
+                infoDetail = 'Disarankan pemberian irigasi presisi untuk cegah penurunan yield.';
+                wisdomVol = `Irigasi: ${f1(d.swd)} mm (${f1(d.swd)} Liter/m²)`;
+                wisdomAction = `Lakukan irigasi presisi sejumlah ${f1(d.swd)} mm untuk memulihkan lengas ke tingkat FC.`;
+            } else {
+                statusTitle = 'Status Lengas: KONDISI KRITIS (Titik Layu Permanen)';
+                statusDesc = 'Kadar air di bawah PWP. Tanaman mengalami layu permanen.';
+                statusClass = 'bg-rose-600 text-white border-rose-700';
+                infoZone = 'Zona Titik Layu Permanen (θ <= PWP)';
+                infoDetail = 'Tegangan tanah melampaui daya hisap akar (-15 bar).';
+                wisdomVol = `IRIGASI DARURAT: ${f1(d.swd)} mm (${f1(d.swd)} Liter/m²)`;
+                wisdomAction = 'KONDISI KRITIS! Lakukan penyiraman darurat secepatnya untuk menyelamatkan tanaman.';
+            }
+            $('dikw-alert-banner').className = `p-4 rounded-2xl border shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3 ${statusClass}`;
+            $('dikw-status-title').innerText = statusTitle;
+            $('dikw-status-desc').innerText = statusDesc;
+            $('val-info-zone').innerText = infoZone;
+            $('val-info-detail').innerText = infoDetail;
+
+            // Level 3 KNOWLEDGE: hari tersisa sampai batas MAD
+            const safeDays = (level === 'warn' || level === 'crit') ? 0 : d.daysToMad;
+            $('val-know-days').innerText = Number.isFinite(safeDays) ? `${safeDays.toFixed(1)} Hari` : '∞ Hari';
+            $('val-know-phase').innerText = phaseName;
+
+            // Level 4 WISDOM (ringkas) + kartu Wisdom besar
+            $('val-wisdom-vol').innerText = wisdomVol;
+            $('val-wisdom-action').innerText = wisdomAction;
+            const w = updateWisdom(p, d, level);
+            $('rep-wisdom-text').innerText = `${w.title}. ${w.command}`;
+            $('rep-total').innerText = `${fInt(w.total)} L (${f1(w.vol)} mm × ${fInt(p.area)} m²)`;
+
+            // Haptik saat transisi ke kritis pada mode IoT
+            if (level === 'crit' && lastLevel !== 'crit' && currentMode === 'iot' && iot.running && navigator.vibrate) {
+                try { navigator.vibrate([200, 100, 200]); } catch (e) {}
+            }
+            lastLevel = level;
+
+            updateModeBadges();
+            renderKcChart(p, d);
+            renderDIKWChart(p, d, level);
+            renderTrendChart();
+        }
+
+        function renderKcChart(p, d) {
+            if (!tabVisible('input')) return;
+            kcState.curve = d.curve;
+            kcState.idx = d.idx;
+            if (!chartKcInstance) {
+                const ctx = $('chartKc').getContext('2d');
+                chartKcInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: d.curve.labels,
+                        datasets: [{
+                            label: 'Kc Tanaman', data: d.curve.kc,
+                            borderColor: '#16a34a', backgroundColor: 'rgba(22, 163, 74, 0.1)',
+                            borderWidth: 3, fill: true, tension: 0.2, pointRadius: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { min: 0, max: 1.5, title: { display: true, text: 'Kc' } },
+                            x: { ticks: { maxTicksLimit: 8 } }
+                        }
+                    },
+                    plugins: [{
+                        id: 'phaseBand',
+                        beforeDatasetsDraw(chart) {
+                            const { ctx, chartArea, scales } = chart;
+                            if (!chartArea || !kcState.curve || !scales.x) return;
+                            const x = scales.x;
+                            const bb = kcState.curve.bounds[currentPhase];
+                            const half = (x.getPixelForValue(1) - x.getPixelForValue(0)) / 2;
+                            const x0 = Math.max(x.getPixelForValue(bb.start) - half, chartArea.left);
+                            const x1 = Math.min(x.getPixelForValue(bb.end) + half, chartArea.right);
+                            ctx.save();
+                            ctx.fillStyle = 'rgba(22,163,74,0.14)';
+                            ctx.fillRect(x0, chartArea.top, Math.max(0, x1 - x0), chartArea.bottom - chartArea.top);
+                            const mx = x.getPixelForValue(kcState.idx);
+                            ctx.strokeStyle = '#0f172a';
+                            ctx.setLineDash([4, 3]);
+                            ctx.lineWidth = 1.5;
+                            ctx.beginPath(); ctx.moveTo(mx, chartArea.top); ctx.lineTo(mx, chartArea.bottom); ctx.stroke();
+                            ctx.restore();
+                        }
+                    }]
+                });
+            } else {
+                chartKcInstance.data.labels = d.curve.labels;
+                chartKcInstance.data.datasets[0].data = d.curve.kc;
+                chartKcInstance.update('none');
+            }
+        }
+
+        function renderDIKWChart(p, d, level) {
+            if (!tabVisible('dashboard')) return;
+            zoneState.theta = p.theta; zoneState.fc = p.fc; zoneState.pwp = p.pwp; zoneState.mad = d.madLimit;
+            const maxScale = Math.ceil(Math.max(p.theta + 5, p.fc + 10));
+            const colorMap = { over: '#0284c7', ok: '#16a34a', warn: '#f59e0b', crit: '#e11d48' };
+
+            if (!chartDIKWInstance) {
+                const ctx = $('chartDIKW').getContext('2d');
+                chartDIKWInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Status Lengas Tanah Aktual'],
+                        datasets: [{
+                            label: 'Kadar Air Aktual (θ)', data: [p.theta],
+                            backgroundColor: colorMap[level], borderColor: '#0f172a', borderWidth: 2, barThickness: 36
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        layout: { padding: { top: 18 } },
+                        plugins: { legend: { position: 'top' } },
+                        scales: { x: { min: 0, max: maxScale, title: { display: true, text: 'Kadar Air (% Volumetrik)' } } }
+                    },
+                    plugins: [{
+                        id: 'dikwZones',
+                        beforeDraw(chart) {
+                            const { ctx, chartArea: { top, bottom, left, right }, scales: { x } } = chart;
+                            const z = zoneState;
+                            const pwpX = x.getPixelForValue(z.pwp);
+                            const madX = x.getPixelForValue(z.mad);
+                            const fcX = x.getPixelForValue(z.fc);
+
+                            ctx.fillStyle = 'rgba(244, 63, 94, 0.15)';
+                            ctx.fillRect(left, top, pwpX - left, bottom - top);
+                            ctx.fillStyle = 'rgba(245, 158, 11, 0.15)';
+                            ctx.fillRect(pwpX, top, madX - pwpX, bottom - top);
+                            ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
+                            ctx.fillRect(madX, top, fcX - madX, bottom - top);
+                            ctx.fillStyle = 'rgba(14, 165, 233, 0.15)';
+                            ctx.fillRect(fcX, top, right - fcX, bottom - top);
+
+                            const drawLine = (xVal, color, label) => {
+                                const posX = x.getPixelForValue(xVal);
+                                ctx.save();
+                                ctx.beginPath();
+                                ctx.strokeStyle = color;
+                                ctx.setLineDash([4, 4]);
+                                ctx.lineWidth = 2;
+                                ctx.moveTo(posX, top);
+                                ctx.lineTo(posX, bottom);
+                                ctx.stroke();
+                                ctx.fillStyle = color;
+                                ctx.font = 'bold 10px Plus Jakarta Sans';
+                                ctx.fillText(label, posX - 15, top - 5);
+                                ctx.restore();
+                            };
+                            drawLine(z.pwp, '#e11d48', `PWP (${z.pwp}%)`);
+                            drawLine(z.mad, '#d97706', `MAD (${z.mad.toFixed(1)}%)`);
+                            drawLine(z.fc, '#16a34a', `FC (${z.fc}%)`);
+                        }
+                    }]
+                });
+            } else {
+                const c = chartDIKWInstance;
+                c.data.datasets[0].data = [p.theta];
+                c.data.datasets[0].backgroundColor = colorMap[level];
+                c.options.scales.x.max = maxScale;
+                c.update('none');
+            }
+        }
+
+        /* =========================================================
+           10. TEST SUITE
+           ========================================================= */
+        function runTestCase(caseType) {
+            if (currentMode === 'iot') setMode('manual');
+            $('input-fc').value = 28.0;
+            $('input-pwp').value = 14.0;
+            $('input-mad').value = 0.50;
+            if (caseType === 'tergenang') $('input-theta').value = 34.0;
+            else if (caseType === 'ideal') $('input-theta').value = 24.0;
+            else if (caseType === 'stres') $('input-theta').value = 18.0;
+            else if (caseType === 'layu') $('input-theta').value = 11.5;
+            simRows = null;
+            switchTab('dashboard');
+            recordReading('uji:' + caseType);
+        }
+
+        /* =========================================================
+           11. INIT
+           ========================================================= */
+        window.addEventListener('load', () => {
+            lucide.createIcons();
+            calculateAll();
+            switchTab('beranda');
+        });
+    </script>
+</body>
+</html>
